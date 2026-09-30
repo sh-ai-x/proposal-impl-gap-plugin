@@ -1,7 +1,7 @@
 import pytest
 
 from gap_plugin.errors import MissingAPIKeyError
-from gap_plugin.judges import get_judge, jev_judge
+from gap_plugin.judges import jev_judge
 from gap_plugin.types import Candidate, Section
 
 
@@ -84,12 +84,3 @@ def test_haiku_judge_raises_without_api_key(monkeypatch: pytest.MonkeyPatch) -> 
     section = _section("ship the widget")
     with pytest.raises(MissingAPIKeyError):
         haiku_judge(section, [], after_files=set())
-
-
-def test_get_judge_returns_registered_callable() -> None:
-    assert get_judge("jev") is jev_judge
-
-
-def test_get_judge_rejects_unknown_name() -> None:
-    with pytest.raises(ValueError):
-        get_judge("nonexistent")

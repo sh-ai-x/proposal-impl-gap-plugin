@@ -53,43 +53,34 @@ file below is new unless marked.
   so verdicts stay comparable with the existing eval harness.
 - `gap_plugin/errors.py` — `MissingAPIKeyError`.
 - `gap_plugin/discovery.py` — `discover_docs()`: globs `docs/proposals/**/*.md`
-  and `**/*.proposal.md`, strips YAML frontmatter, splits into headed sections.
-  Excludes `tests/`, `test/`, `node_modules/`, `venv/`, `.venv/`.
-- `gap_plugin/diffscan.py` — `parse_after_files()` (`git diff --name-only`) and
-  `diff_bullets()` (added-line text per changed file; this is the BM25 corpus).
-- `gap_plugin/bm25.py` — hand-rolled Okapi BM25, stdlib `Counter`/`math.log`
-  only.
-- `gap_plugin/symbols.py` — symbol/tree-sitter index stub; `symbol_candidates()`
-  returns `[]`, wired into the retrieval candidate set (the diagram's
-  `sym→Question` edge).
-- `gap_plugin/retrieval.py` — the bounded-retry state machine from
-  `archify/lifecycle-retrieval`: enter → Question (BM25 top-`k=10` + symbol
-  candidates) → Good?(judge) → `answer` (accepted) or Rewrite (camelCase /
-  snake_case query expansion) → retry-limit gate (`retry_limit=2`, so at most 3
-  attempts per section, matching the diagram's own card annotation) → back to
-  Question or `missing_info`.
-- `gap_plugin/judges.py` — `Judge` protocol
-  (`Callable[[Section, list[Candidate], set[str]], JudgeVerdict]`);
-  `heuristic_judge` (default, no AI: token overlap plus an "After files"
-  intersection bonus, `CONFIDENCE_THRESHOLD=0.7`), `haiku_judge` (real Claude
-  call), `jev_judge` (raises `NotImplementedError`).
-- `gap_plugin/llm.py` — shared Claude-Messages-API call boundary; providers
-  `anthropic`, `minimax`, `deepseek` selected by `base_url`, the same
-  convention `.github/workflows/hl-review.yml` already uses. Loads `.env` via
-  `python-dotenv` at import time, no-op if absent.
-- `gap_plugin/verdict.py` — `llm_status_verdict()`: Claude call producing an
-  `ACStatus` with structured JSON output; raises `MissingAPIKeyError` when the
-  relevant key is absent.
+  and `**/*.proposal.md`, strips YAML frontmatter, splits into headed
+  sections. One claim per top-level bullet in the `## After` section
+  only (Before / Business impact / Pros / Cons / Limitations / Decision
+  are narrative, never implementation claims). Excludes `tests/`,
+  `test/`, `node_modules/`, `venv/`, `.venv/`.
+- `gap_plugin/direct.py` — `resolve(section, repo_root, ...)`: bypasses
+  retrieval entirely. Each After-bullet in this repo's proposals
+  names the file it claims to ship, so one `Read` + one Jev call
+  resolves the claim. `_FILE_PATH_RE` extracts a backtick-quoted path
+  (validated against the repo root to refuse `..` segments and any
+  extension outside the proposal's documented set); the snippet is
+  capped (`_SNIPPET_CAP = 4000`) and shipped to Jev. When Jev's
+  `noul` lands inside the 0.3–0.7 uncertainty band, the in-module
+  `haiku_judge` is consulted instead of resolving on a coin flip.
+- `gap_plugin/judges.py` — single judge, `jev_judge`, plus its internal
+  `haiku_judge` escalation. `_call_jev` is the only network call.
+- `gap_plugin/llm.py` — shared Claude-Messages-API call boundary;
+  providers `anthropic`, `minimax`, `deepseek` selected by `base_url`,
+  the same convention `.github/workflows/hl-review.yml` already uses.
 - `gap_plugin/report.py` — `build_doc_report` / `build_repo_report`
-  (`repo_score = 1 - mean(gap_weight)`, with `missing`/`contradicted` = 1.0,
-  `partial`/`unknown` = 0.5, `implemented`/`added` = 0.0) and `emit_report`
-  (timestamped Markdown + JSON).
+  (`repo_score = 1 - mean(gap_weight)`, with `missing`/`contradicted`
+  = 1.0, `partial`/`unknown` = 0.5, `implemented`/`added` = 0.0) and
+  `emit_report` (timestamped Markdown + JSON).
 - `gap_plugin/pipeline.py` — `scan(files, repo, ...)`, a plain for-loop
-  orchestrator per `archify/sequence-pr-scan` (deliberately not a state machine
-  at the top level; only retrieval is). `files` lets CI hand in the PR's
-  changed-file list directly, matching the sequence diagram's `scan(files, repo)`
-  call shape and bypassing the internal git shell-out. Skips the git-diff step
-  entirely when zero proposal docs are discovered.
+  orchestrator per `archify/sequence-pr-scan`. `files` lets CI hand in
+  the PR's changed-file list directly, matching the sequence diagram's
+  `scan(files, repo)` call shape. Skips the git-diff step entirely
+  when zero proposal docs are discovered.
 
 **New CLI and supporting files:**
 
@@ -106,7 +97,9 @@ file below is new unless marked.
 `scripts/derive_gt.py` are untouched. Both were re-run after every change in
 this session (`derive_gt.py` exit 0; `eval_judge.py --judges heuristic` renders
 its report normally), confirming no accidental coupling between the new package
-and the existing harness.
+and the existing harness. `scripts/eval_judge.py` is the offline ground-truth
+evaluator only — production inference goes through the direct-judge path
+above, not through any heuristic signal.
 
 Two design corrections were made mid-build and are worth recording because they
 changed the wiring, not just the code:
@@ -163,9 +156,13 @@ changed the wiring, not just the code:
   compatible endpoints at different `base_url`s, the same trick
   `.github/workflows/hl-review.yml` already uses. `python-dotenv` was likewise
   already installed.
-- **Default path needs no API key.** `heuristic_judge` is the default judge and
-  makes no network call, so `scripts/gap_scan.py` runs in CI without a secret.
-  The LLM path is opt-in.
+- **Default path needs no API key for no-network parts.** The
+  lexical-overlap / BM25 fallback that used to ship without a key has
+  been removed; the direct-judge path always calls the configured
+  judge (Jev by default), which requires `JEV_API_KEY`. The cost
+  shape is ~$0.001 per claim with escalation to haiku only when Jev's
+  noul lands inside the uncertainty band — so an honest no-network
+  default is no longer claimed. CI must provision `JEV_API_KEY`.
 - **Fails loudly where the existing harness fails quietly.**
   `gap_plugin/verdict.py` raises the typed `MissingAPIKeyError` on a missing
   key — a deliberate divergence from `scripts/eval_judge.py`'s `predict_llm`

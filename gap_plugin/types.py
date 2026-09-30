@@ -26,38 +26,22 @@ class ProposalDoc:
 
 
 @dataclass(frozen=True)
-class EvidenceItem:
-    """One 'After bullet' -- implementation evidence for a changed file, BM25's corpus."""
-
-    file_path: str
-    text: str
-
-
-@dataclass(frozen=True)
 class Candidate:
     file_path: str
     snippet: str
     score: float
-    source: Literal["bm25", "symbol"]
+    # `source` was Literal["bm25", "symbol"] when a retrieval layer
+    # existed; direct.py and tests/test_judges.py only ever pass
+    # "bm25", but the post-refactor `Candidate` is a direct-Read
+    # candidate and "symbol" never materialized. Keep it a plain
+    # `str` so callers can name future sources without widening
+    # the literal.
+    source: str
 
 
 @dataclass(frozen=True)
 class JudgeVerdict:
     accepted: bool
-    confidence: float
-    reasoning: str
-
-
-@dataclass(frozen=True)
-class RetrievalOutcome:
-    status: Literal["answer", "missing_info"]
-    candidates: list[Candidate]
-    attempts: int
-
-
-@dataclass(frozen=True)
-class VerdictResult:
-    status: ACStatus
     confidence: float
     reasoning: str
 

@@ -9,13 +9,16 @@ The old `heuristic_judge` (token overlap + after_files bonus) lived here
 because it gated BM25 retrieval candidates. With the retrieval layer
 removed, there is nothing for a heuristic to gate -- direct.read +
 jev_judge replaces both.
+
+`scripts/eval_judge.py` keeps the offline heuristic evaluator for the
+ground-truth harness only; production inference goes through the
+single direct-judge path below.
 """
 from __future__ import annotations
 
 import json
 import os
 import urllib.request
-from collections.abc import Callable
 from typing import Any
 
 from gap_plugin.errors import MissingAPIKeyError
@@ -29,8 +32,6 @@ CONFIDENCE_THRESHOLD = 0.7
 JEV_ESCALATION_CERTAINTY = 0.4
 
 TYPESAFE_API_URL = "https://api.typesafe.ai/v1/systemone"
-
-Judge = Callable[[Section, list[Candidate], set[str]], JudgeVerdict]
 
 
 def _build_judge_prompt(section: Section, candidates: list[Candidate]) -> str:
@@ -148,15 +149,3 @@ def jev_judge(
         confidence=certainty,
         reasoning=f"jev noul={noul:.2f} ({'implemented' if accepted else 'not implemented'} per evidence)",
     )
-
-
-_JUDGES: dict[str, Judge] = {
-    "jev": jev_judge,
-}
-
-
-def get_judge(name: str) -> Judge:
-    try:
-        return _JUDGES[name]
-    except KeyError:
-        raise ValueError(f"unknown judge: {name!r}; choices: {sorted(_JUDGES)}") from None

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Run scripts/gap_scan.py, self-verify every disputed claim (status partial/missing/contradicted/unknown) by directly reading the actual files -- most "unknown" claims are heuristic-judge false negatives an agent can resolve on sight -- and only ask a human the ones that stay genuinely ambiguous after that check, quoting both the proposal's wording and what was found. Routes the answer (self-resolved or human-answered) to a proposal-doc fix, a follow-up implementation task, or (for a fully-rotted doc) a deletion. Claude Code and Codex CLI compatible.
+description: Run scripts/gap_scan.py, self-verify every disputed claim (status partial/missing/contradicted/unknown) by directly reading the actual files -- most "unknown" claims are low-confidence Jev verdicts an agent can resolve on sight -- and only ask a human the ones that stay genuinely ambiguous after that check, quoting both the proposal's wording and what was found. Routes the answer (self-resolved or human-answered) to a proposal-doc fix, a follow-up implementation task, or (for a fully-rotted doc) a deletion. Claude Code and Codex CLI compatible.
 ---
 
 # Gap Plugin: Review
@@ -58,8 +58,8 @@ python3 scripts/gap_scan.py --out-dir data/scan/reports
 ```
 
 The pipeline runs direct judge (Jev with internal haiku escalation) per claim.
-A free no-key scan is no longer supported -- the old `--judge heuristic`
-path was removed because its lexical-overlap signal was an order of
+A free no-key scan is no longer supported -- the old BM25 + lexical-overlap
+judge path was removed because its lexical-overlap signal was an order of
 magnitude worse than direct judgment on this proposal. The LLM cost is
 paid only for the fraction of claims that escalate from Jev's uncertainty
 band, which on this proposal was 2/17.
