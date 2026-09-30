@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "gap-plugin",
+  "displayName": "Gap Plugin",
+  "version": "0.1.0",
+  "description": "Detects drift between proposal documents and their implementation (gap_plugin/, scripts/gap_scan.py), then walks a human through resolving each disputed claim. Claude Code + Codex compatible.",
+  "author": {
+    "name": "sh-ai-x",
+    "url": "https://github.com/sh-ai-x"
+  },
+  "owner": "sh-ai-x",
+  "repository": "https://github.com/sh-ai-x/proposal-impl-gap-plugin",
+  "license": "MIT",
+  "keywords": [
+    "proposal",
+    "drift",
+    "gap-detection",
+    "review",
+    "codex"
+  ],
+  "skills": "./skills/"
+}
