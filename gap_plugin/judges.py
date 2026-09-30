@@ -8,22 +8,20 @@ judge-agnostic and only reads `.accepted`).
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from typing import Any
 
 from gap_plugin.llm import call_claude, default_model
+from gap_plugin.text import tokenize
 from gap_plugin.types import Candidate, JudgeVerdict, Section
 
 CONFIDENCE_THRESHOLD = 0.7
 
 Judge = Callable[[Section, list[Candidate], set[str]], JudgeVerdict]
 
-_TOKEN = re.compile(r"[a-z0-9]+")
-
 
 def _tokenize(text: str) -> set[str]:
-    return set(_TOKEN.findall(text.lower()))
+    return set(tokenize(text))
 
 
 def heuristic_judge(section: Section, candidates: list[Candidate], after_files: set[str]) -> JudgeVerdict:

@@ -2,19 +2,13 @@
 from __future__ import annotations
 
 import math
-import re
 from collections import Counter
 
+from gap_plugin.text import tokenize as _tokenize
 from gap_plugin.types import Candidate, EvidenceItem
-
-_TOKEN = re.compile(r"[a-z0-9]+")
 
 K1 = 1.5
 B = 0.75
-
-
-def _tokenize(text: str) -> list[str]:
-    return _TOKEN.findall(text.lower())
 
 
 class BM25Index:
