@@ -10,7 +10,11 @@ from __future__ import annotations
 import os
 from typing import Literal
 
+from dotenv import load_dotenv
+
 from gap_plugin.errors import MissingAPIKeyError
+
+load_dotenv()  # picks up a .env in the cwd (or a parent dir); no-op if none exists
 
 Provider = Literal["anthropic", "minimax", "deepseek"]
 
