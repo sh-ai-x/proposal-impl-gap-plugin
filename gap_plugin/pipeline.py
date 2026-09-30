@@ -53,7 +53,8 @@ def scan(
     bm25.build(bullets)
 
     judge = get_judge(judge_name)
-    if judge_name == "haiku":
+    if judge_name in ("haiku", "jev"):
+        # jev also needs provider= for its haiku-escalation path on uncertain noul.
         judge = functools.partial(judge, provider=provider)
 
     verdict_model = verdict_model or default_model(provider, "sonnet")

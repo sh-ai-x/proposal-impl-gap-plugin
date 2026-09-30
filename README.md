@@ -25,7 +25,7 @@ See `archify/` for rendered diagrams + candidate sources. Each diagram has a sib
 | Eval harness | `scripts/eval_judge.py` (anti-contamination) |
 | Gap Plugin pipeline | Implemented — `gap_plugin/`, runnable via `scripts/gap_scan.py` |
 | Real LLM integration | Implemented for `anthropic`/`minimax`/`deepseek` (all Anthropic-Messages-compatible, one SDK, see `gap_plugin/llm.py`) — needs the matching `*_API_KEY` in `.env` or the environment |
-| Jev integration | Pending (needs `typesafe-ai` MCP wired) — `judges.jev_judge` raises `NotImplementedError` |
+| Jev integration | Implemented — TypeSafe System One (Noul primitive) via `TYPESAFE_API_KEY`; escalates to an LLM judge when Jev's own answer is near 50/50, see `gap_plugin/judges.py:jev_judge` |
 
 ## Run
 
@@ -39,6 +39,7 @@ python3 scripts/eval_judge.py
 # Run the actual Gap Plugin scan (heuristic judge needs no key; haiku/verdict need one)
 python3 scripts/gap_scan.py
 python3 scripts/gap_scan.py --judge haiku --provider minimax   # needs MINIMAX_API_KEY
+python3 scripts/gap_scan.py --judge jev                        # needs TYPESAFE_API_KEY (+ ANTHROPIC_API_KEY for escalation)
 
 # Run the gap_plugin test suite
 python3 -m pytest tests/

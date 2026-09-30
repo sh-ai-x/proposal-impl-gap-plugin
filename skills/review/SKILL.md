@@ -1,34 +1,49 @@
 ---
 name: review
-description: Run scripts/gap_scan.py, then walk a human through every disputed proposal-vs-implementation claim (status partial/missing/contradicted/unknown) with the proposal's own wording quoted alongside the judge's reasoning, and route the human's answer to a proposal-doc fix, a follow-up implementation task, or (for a fully-rotted doc) a deletion. Use after a scan has flagged claims and a human is available to adjudicate -- never to auto-resolve a disagreement. Claude Code and Codex CLI compatible.
+description: Run scripts/gap_scan.py, self-verify every disputed claim (status partial/missing/contradicted/unknown) by directly reading the actual files -- most "unknown" claims are heuristic-judge false negatives an agent can resolve on sight -- and only ask a human the ones that stay genuinely ambiguous after that check, quoting both the proposal's wording and what was found. Routes the answer (self-resolved or human-answered) to a proposal-doc fix, a follow-up implementation task, or (for a fully-rotted doc) a deletion. Claude Code and Codex CLI compatible.
 ---
 
 # Gap Plugin: Review
 
-Turns a `gap_scan.py` report into decisions. This skill never decides who's
-right (the proposal or the implementation) -- it always asks, cites both
-sides, and records the human's answer. See `docs/proposals/gap-plugin-pipeline.md`
+Turns a `gap_scan.py` report into decisions. It does NOT ask a human
+something the agent can just go check -- "does this file exist and match
+the proposal" is a fact, not a judgment call, and the agent running this
+skill already has Read access the automated heuristic judge didn't use
+well. What it never does is *guess* on a genuine disagreement (proposal
+says X, code does Y, and it's unclear which one should win) -- that one
+gets asked, with both sides quoted. See `docs/proposals/gap-plugin-pipeline.md`
 for why: a text-diffing pipeline cannot know which side was updated more
-recently or more deliberately, and a report with an unread reasoning string
-is not a decision.
+recently or more deliberately -- but a human can't know that from a
+one-line status label either, so don't ask them something *they* can't
+resolve any better than the agent already has.
 
 ## What it does
 
 1. Runs (or reuses) a scan, gets a `RepoReport`.
-2. For every claim whose `status` is `partial`, `missing`, `contradicted`, or
-   `unknown`: quotes the proposal's own bullet next to the judge's
-   `reasoning`, asks the human which side is right, and acts on the answer.
-3. Appends one line per resolved claim to `data/scan/decisions.jsonl`
-   (append-only; never overwritten, never read back to skip a claim unless
-   the human asked to skip it last time).
-4. After every claim in a doc is resolved, offers to delete the doc if
+2. For every claim whose `status` is `partial`, `missing`, `contradicted`,
+   or `unknown`: reads the actual file(s) the claim is about and checks
+   directly whether the proposal's wording holds. Most `missing_info`
+   claims resolve right here -- the file exists and matches, or it's
+   genuinely absent -- with no human involved.
+3. Only asks a human the claims that are still ambiguous after that check
+   (file exists but conflicts with the proposal in a way that could
+   reasonably go either way, or the correct resolution is a product/scope
+   call the code alone can't answer).
+4. Appends one line per resolved claim (self-resolved or human-answered)
+   to `data/scan/decisions.jsonl` (append-only; never overwritten).
+5. After every claim in a doc is resolved, offers to delete the doc if
    >=80% of its claims ended up `missing`/`contradicted` (a doc that's
    mostly wrong is more likely stale than the implementation is behind).
 
 ## What it does not do
 
-- Does NOT decide `implementation-is-right` or `proposal-is-right` on its
-  own. Every disputed claim gets a human answer, every time.
+- Does NOT ask a human to verify something the agent can check itself by
+  reading the file. A "does X exist" question the human would have to go
+  open the same file to answer is a wasted round-trip, not a judgment call.
+- Does NOT guess on a real disagreement. Once the agent's own check is
+  inconclusive -- the file exists but genuinely conflicts with the
+  proposal, or resolving it requires knowing intent the code can't
+  express -- it always asks, cites both sides, and never assumes.
 - Does NOT touch claims already `implemented`/`added` -- those aren't
   disputes.
 - Does NOT invent evidence. If the proposal doc's wording for a claim
@@ -66,12 +81,48 @@ and find the `## After` bullet whose slug matches `section_id` (same rule
 evidence. If no bullet matches (doc edited since the scan ran), say so to
 the human instead of fabricating one.
 
-### Step 3 -- Ask, per claim
+### Step 3 -- Self-check each claim (three tiers, cheapest first)
 
-Present, together:
+Most `missing_info`/`unknown` claims are the automated retrieval judge
+failing to confirm something a closer look settles immediately. Don't
+skip straight to asking a human -- climb this ladder and stop at the
+first tier that resolves the claim:
+
+1. **Read it yourself.** The bullet (Step 2) usually names the file(s).
+   Open them (Read tool / Glob for a rename) and check directly: does the
+   content do what the bullet describes? This alone resolves the large
+   majority of `missing_info` claims -- free, and often the file plainly
+   exists and matches, or plainly doesn't exist at all.
+2. **Ask Jev when your own read is genuinely unsure** (partial match,
+   ambiguous overlap) -- call `gap_plugin.judges.jev_judge(section,
+   candidates, after_files)` for a calibrated second opinion. The report
+   doesn't store the original retrieved candidates (see "Known gap"), so
+   build `candidates` yourself from what tier 1 already read: a single
+   `Candidate(file_path=<the file you opened>, snippet=<the content you
+   read, truncated if huge>, score=1.0, source="bm25")` is enough -- tier
+   2 is a calibrated second opinion on the *same* evidence tier 1 saw,
+   not a fresh retrieval. Needs `TYPESAFE_API_KEY`; if it's not set, skip
+   this tier entirely and go straight to Step 4. `jev_judge` already
+   escalates internally to `haiku_judge` when Jev's own answer is near a
+   coin flip (`noul` close to 0.5), so this one call may itself make two
+   -- that's expected, not a bug to route around.
+3. **Still unresolved?** That's a real disagreement, not a detection gap
+   -- take it to Step 4.
+
+Resolving at tier 1 or 2 means: log the decision now (Step 6,
+`implementation-right` if the file matches, `proposal-right` if it's
+genuinely missing/wrong) and move to the next claim. Do not ask the human
+something tiers 1-2 already settled -- that's the mistake this skill
+exists to avoid (see "What it does not do").
+
+### Step 4 -- Ask, per still-unresolved claim
+
+Only claims that survived Step 3's three tiers land here. Present,
+together:
 - The quoted proposal bullet (Step 2).
-- The judge's `reasoning`, `status`, and `confidence` from the report --
-  this is the implementation side of the evidence, already computed.
+- What Step 3 actually found -- the file content read, and Jev/haiku's
+  reasoning if that tier ran. Never present the original automated
+  judge's `reasoning` alone; it's stale the moment Step 3 looked further.
 - Three options: **implementation is right** (the proposal is stale),
   **proposal is right** (the implementation is missing or wrong), **skip**.
 
@@ -82,10 +133,10 @@ stop and surface the error instead).
 
 **Codex CLI**: no structured multi-choice tool exists here -- ask in plain
 text, spelling out the same three options, and wait for the next user
-message. Do not proceed to Step 4 on a guessed or inferred answer; if the
+message. Do not proceed to Step 5 on a guessed or inferred answer; if the
 reply is ambiguous, ask again naming exactly the three options.
 
-### Step 4 -- Act on the answer
+### Step 5 -- Act on the answer
 
 - **implementation is right**: open the proposal doc (Edit tool) and fix
   the stale bullet -- either correct its wording to match what's actually
@@ -100,24 +151,30 @@ reply is ambiguous, ask again naming exactly the three options.
     conversation's context), one call per claim, self-contained prompt.
   - **Codex CLI**: explicitly delegate to a Codex subagent the same way,
     one per claim, in the same turn where possible.
-- **skip**: do nothing. Still log it (Step 5) so a later run doesn't
+- **skip**: do nothing. Still log it (Step 6) so a later run doesn't
   re-ask silently -- the human sees it was skipped, not missed.
 
-### Step 5 -- Log the decision
+### Step 6 -- Log the decision
 
 Append one JSON line to `data/scan/decisions.jsonl` (create the file and
-`data/scan/` if needed; never truncate or rewrite existing lines):
+`data/scan/` if needed; never truncate or rewrite existing lines) for
+every resolved claim -- self-resolved at Step 3 or human-answered at
+Step 5:
 
 ```json
-{"doc_path": "...", "section_id": "...", "status": "...", "decision": "implementation-right|proposal-right|skip", "resolved_at": "<ISO 8601 UTC>"}
+{"doc_path": "...", "section_id": "...", "status": "...", "decision": "implementation-right|proposal-right|skip", "resolved_by": "self-check|jev|haiku|human", "resolved_at": "<ISO 8601 UTC>"}
 ```
 
-### Step 6 -- Doc-level rot check
+`resolved_by` records which tier actually settled it -- keep this
+honest; it's how a later audit tells a real human decision from an
+agent's own read.
+
+### Step 7 -- Doc-level rot check
 
 After all of one doc's claims are resolved, compute:
 `(missing + contradicted) / total_claims_in_doc` from the report's
 `status_counts`. If >=0.8, tell the human this doc looks mostly stale and
-ask (plain yes/no, same per-host mechanism as Step 3) whether to delete
+ask (plain yes/no, same per-host mechanism as Step 4) whether to delete
 it. On yes: `git rm <doc_path>` and a one-line commit-message-worthy
 explanation citing the ratio. On no or no answer: leave it, move on.
 

@@ -89,3 +89,11 @@ def test_scan_with_haiku_judge_and_minimax_provider_reaches_the_right_env_var(
 
     with pytest.raises(MissingAPIKeyError, match="MINIMAX_API_KEY"):
         pipeline.scan(["src/retrieval_config.py"], repo, judge_name="haiku", provider="minimax")
+
+
+def test_scan_with_jev_judge_requires_typesafe_api_key(tmp_path, monkeypatch) -> None:
+    repo = _init_repo_with_proposal(tmp_path)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+
+    with pytest.raises(MissingAPIKeyError, match="TYPESAFE_API_KEY"):
+        pipeline.scan(["src/retrieval_config.py"], repo, judge_name="jev")
