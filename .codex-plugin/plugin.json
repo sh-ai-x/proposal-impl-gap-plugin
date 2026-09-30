@@ -1,0 +1,33 @@
+{
+  "name": "gap-plugin",
+  "version": "0.1.0",
+  "description": "Detects drift between proposal documents and their implementation (gap_plugin/, scripts/gap_scan.py), then walks a human through resolving each disputed claim. Codex-native install.",
+  "author": {
+    "name": "sh-ai-x",
+    "url": "https://github.com/sh-ai-x"
+  },
+  "homepage": "https://github.com/sh-ai-x/proposal-impl-gap-plugin",
+  "repository": "https://github.com/sh-ai-x/proposal-impl-gap-plugin",
+  "license": "MIT",
+  "keywords": [
+    "proposal",
+    "drift",
+    "gap-detection",
+    "review",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Gap Plugin",
+    "shortDescription": "Proposal-vs-implementation drift review for Codex CLI",
+    "longDescription": "Runs scripts/gap_scan.py, then walks a human through each disputed claim with the retrieved evidence, recording decisions and routing to doc updates or implementation follow-up.",
+    "developerName": "sh-ai-x",
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/sh-ai-x/proposal-impl-gap-plugin",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ]
+  }
+}

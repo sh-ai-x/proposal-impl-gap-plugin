@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "94950d13-8c7a-4efc-acd8-656f460a5533",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/sanghee/dev/proposal-impl-gap-plugin/.worktrees/gap-plugin-implementation/.archify/sequence-direct-judge-20261001-000605/candidate.json",
+  "output": "/Users/sanghee/dev/proposal-impl-gap-plugin/.worktrees/gap-plugin-implementation/.archify/sequence-direct-judge-20261001-000605/sequence.html",
+  "specification": {
+    "sha256": "ce61dc3d81fdb5426aee7c1a6cfaeb43572c160847c77527c3d6ad4600a4818a",
+    "bytes": 4237
+  },
+  "artifact": {
+    "sha256": "a747aca1c11fc8431d933ebe1747a8ba5f85dbc4c5a7fb14ae290fb0cf3172d6",
+    "bytes": 762083
+  }
+}
