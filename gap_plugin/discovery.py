@@ -7,6 +7,9 @@ from pathlib import Path
 from gap_plugin.types import ProposalDoc, Section
 
 _PATTERNS = ("docs/proposals/**/*.md", "**/*.proposal.md")
+# A repo adopting this tool shouldn't get its own *.proposal.md test fixtures
+# swept in as if they were real proposals to check against.
+_EXCLUDED_DIR_PARTS = {"tests", "test", "node_modules", "venv", ".venv"}
 _FRONTMATTER = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 _HEADING = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
 
@@ -48,6 +51,8 @@ def discover_docs(repo_root: Path) -> list[ProposalDoc]:
     docs: list[ProposalDoc] = []
     for path in sorted(paths):
         rel = path.relative_to(repo_root).as_posix()
+        if _EXCLUDED_DIR_PARTS & set(Path(rel).parts[:-1]):
+            continue
         sections = parse_sections(rel, path.read_text())
         docs.append(ProposalDoc(path=rel, sections=sections))
     return docs

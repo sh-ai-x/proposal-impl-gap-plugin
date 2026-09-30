@@ -36,9 +36,15 @@ def scan(
 
     # `files` lets CI hand in the PR's changed-file list directly (matches the
     # sequence diagram's scan(files, repo) call); fall back to computing it
-    # ourselves when the caller doesn't already know it.
-    changed = set(files) if files else parse_after_files(repo, base_ref=base_ref)
-    bullets = diff_bullets(repo, changed, base_ref=base_ref) if changed else []
+    # ourselves when the caller doesn't already know it. Skip the git diff
+    # entirely when there are no docs to check evidence against -- also
+    # avoids failing on a repo with no commits yet.
+    if docs:
+        changed = set(files) if files else parse_after_files(repo, base_ref=base_ref)
+        bullets = diff_bullets(repo, changed, base_ref=base_ref) if changed else []
+    else:
+        changed = set()
+        bullets = []
 
     bm25 = BM25Index()
     bm25.build(bullets)

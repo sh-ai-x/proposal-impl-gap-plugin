@@ -41,3 +41,14 @@ def test_discover_docs_ignores_unrelated_markdown(tmp_path: Path) -> None:
 
 def test_discover_docs_returns_empty_list_when_no_proposals_dir(tmp_path: Path) -> None:
     assert discover_docs(tmp_path) == []
+
+
+def test_discover_docs_excludes_test_fixtures(tmp_path: Path) -> None:
+    """A repo adopting this tool shouldn't get its own *.proposal.md test
+    fixtures swept in as if they were real proposals to check against."""
+    _write(tmp_path / "tests" / "fixtures" / "sample.proposal.md", "## Goals\nx\n")
+    _write(tmp_path / "docs" / "proposals" / "real.proposal.md", "## Goals\ny\n")
+
+    docs = discover_docs(tmp_path)
+
+    assert [d.path for d in docs] == ["docs/proposals/real.proposal.md"]
