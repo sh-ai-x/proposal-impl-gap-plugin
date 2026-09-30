@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from gap_plugin.llm import call_claude
+from gap_plugin.llm import call_claude, default_model
 from gap_plugin.types import Candidate, STATUSES, Section, VerdictResult
 
 
@@ -36,7 +36,9 @@ def llm_status_verdict(
     section: Section,
     candidates: list[Candidate],
     *,
-    model: str = "claude-sonnet-4-5",
+    provider: str = "anthropic",
+    model: str | None = None,
 ) -> VerdictResult:
-    raw_text = call_claude(_build_prompt(section, candidates), model=model, max_tokens=300)
+    model = model or default_model(provider, "sonnet")
+    raw_text = call_claude(_build_prompt(section, candidates), model=model, max_tokens=300, provider=provider)
     return _parse_verdict(raw_text)

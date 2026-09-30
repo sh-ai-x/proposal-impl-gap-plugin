@@ -5,12 +5,14 @@ stays a for-loop by design -- no state-machine overhead at the orchestrator.
 """
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 
 from gap_plugin.bm25 import BM25Index
 from gap_plugin.diffscan import diff_bullets, parse_after_files
 from gap_plugin.discovery import discover_docs
 from gap_plugin.judges import get_judge
+from gap_plugin.llm import default_model
 from gap_plugin.report import build_doc_report, build_repo_report, emit_report
 from gap_plugin.retrieval import run_retrieval
 from gap_plugin.types import DocReport, RepoReport, SectionVerdict
@@ -22,7 +24,8 @@ def scan(
     repo: Path,
     *,
     judge_name: str = "heuristic",
-    verdict_model: str = "claude-sonnet-4-5",
+    provider: str = "anthropic",
+    verdict_model: str | None = None,
     base_ref: str = "HEAD",
     retry_limit: int = 2,
     top_k: int = 10,
@@ -41,6 +44,10 @@ def scan(
     bm25.build(bullets)
 
     judge = get_judge(judge_name)
+    if judge_name == "haiku":
+        judge = functools.partial(judge, provider=provider)
+
+    verdict_model = verdict_model or default_model(provider, "sonnet")
 
     doc_reports: list[DocReport] = []
     for doc in docs:
@@ -60,7 +67,7 @@ def scan(
                     )
                 )
                 continue
-            result = llm_status_verdict(section, outcome.candidates, model=verdict_model)
+            result = llm_status_verdict(section, outcome.candidates, provider=provider, model=verdict_model)
             section_verdicts.append(
                 SectionVerdict(
                     doc_path=doc.path,

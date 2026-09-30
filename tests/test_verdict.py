@@ -30,7 +30,7 @@ def test_parses_well_formed_structured_response(monkeypatch: pytest.MonkeyPatch)
             return fake_response
 
     class FakeClient:
-        def __init__(self, api_key: str) -> None:
+        def __init__(self, api_key: str, base_url: str | None = None) -> None:
             self.messages = FakeMessages()
 
     monkeypatch.setattr("anthropic.Anthropic", FakeClient)
@@ -52,7 +52,7 @@ def test_falls_back_to_unknown_on_malformed_response(monkeypatch: pytest.MonkeyP
             return fake_response
 
     class FakeClient:
-        def __init__(self, api_key: str) -> None:
+        def __init__(self, api_key: str, base_url: str | None = None) -> None:
             self.messages = FakeMessages()
 
     monkeypatch.setattr("anthropic.Anthropic", FakeClient)
@@ -73,7 +73,7 @@ def test_falls_back_to_unknown_on_status_outside_taxonomy(monkeypatch: pytest.Mo
             return fake_response
 
     class FakeClient:
-        def __init__(self, api_key: str) -> None:
+        def __init__(self, api_key: str, base_url: str | None = None) -> None:
             self.messages = FakeMessages()
 
     monkeypatch.setattr("anthropic.Anthropic", FakeClient)

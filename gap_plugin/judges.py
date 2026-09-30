@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from gap_plugin.llm import call_claude
+from gap_plugin.llm import call_claude, default_model
 from gap_plugin.types import Candidate, JudgeVerdict, Section
 
 CONFIDENCE_THRESHOLD = 0.7
@@ -78,9 +78,13 @@ def haiku_judge(
     candidates: list[Candidate],
     after_files: set[str],
     *,
-    model: str = "claude-haiku-4-5",
+    provider: str = "anthropic",
+    model: str | None = None,
 ) -> JudgeVerdict:
-    raw_text = call_claude(_build_judge_prompt(section, candidates), model=model, max_tokens=200)
+    model = model or default_model(provider, "haiku")
+    raw_text = call_claude(
+        _build_judge_prompt(section, candidates), model=model, max_tokens=200, provider=provider
+    )
     return _parse_judge_response(raw_text)
 
 
