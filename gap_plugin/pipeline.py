@@ -23,7 +23,10 @@ def scan(
     files: list[str] | None,
     repo: Path,
     *,
-    judge_name: str = "heuristic",
+    # heuristic's lexical overlap can't bridge paraphrase (measured: ~13%
+    # overlap on real prose vs the ~50% needed) -- haiku costs a call per
+    # retrieval attempt but actually understands the proposal's wording.
+    judge_name: str = "haiku",
     provider: str = "anthropic",
     verdict_model: str | None = None,
     base_ref: str = "HEAD",

@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """gap_scan.py -- run gap_plugin.scan(files, repo) and print a summary.
 
+Default judge is haiku (needs ANTHROPIC_API_KEY, or --provider minimax /
+deepseek + the matching key) -- heuristic's lexical overlap measurably can't
+bridge paraphrase on real proposal prose. Pass --judge heuristic for a free,
+no-key run (lower accuracy, but works anywhere).
+
 Usage:
-  python3 scripts/gap_scan.py                              # scan this repo
-  python3 scripts/gap_scan.py --judge haiku --provider minimax
+  python3 scripts/gap_scan.py                              # scan this repo (haiku, needs a key)
+  python3 scripts/gap_scan.py --judge heuristic             # free, no key needed
+  python3 scripts/gap_scan.py --provider minimax            # needs MINIMAX_API_KEY
   python3 scripts/gap_scan.py --files a.py b.py             # CI-style: hand in the changed-file list
 
 Output:
@@ -26,7 +32,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", type=Path, default=REPO, help="repo root to scan (default: this repo)")
     parser.add_argument("--files", nargs="*", default=None, help="changed files (default: computed via git diff)")
-    parser.add_argument("--judge", default="heuristic", choices=["heuristic", "haiku", "jev"])
+    parser.add_argument("--judge", default="haiku", choices=["heuristic", "haiku", "jev"])
     parser.add_argument("--provider", default="anthropic", choices=["anthropic", "minimax", "deepseek"])
     parser.add_argument("--base-ref", default="HEAD")
     parser.add_argument("--out-dir", type=Path, default=REPO / "data" / "scan" / "reports")

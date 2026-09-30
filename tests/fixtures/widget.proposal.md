@@ -1,5 +1,6 @@
-## Goals
-Add a retry_limit configuration knob to the BM25 retrieval loop.
+## Before
+No retry budget existed for the BM25 retrieval loop.
 
-## Non-goals
-Do not add a caching layer for BM25 queries.
+## After
+- `src/retrieval_config.py` — Add a retry_limit configuration knob to the BM25 retrieval loop.
+- `src/oauth_login.py` — Add a Google OAuth login screen for the admin dashboard.

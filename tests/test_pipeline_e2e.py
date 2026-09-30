@@ -47,12 +47,14 @@ def test_scan_runs_end_to_end_and_emits_report(tmp_path, monkeypatch) -> None:
     assert doc.doc_path == "docs/proposals/widget.proposal.md"
     statuses = {v.section_id: v.status for v in doc.sections}
 
-    # "Goals" section shares tokens with src/retrieval_config.py (an After
-    # file) -> heuristic judge accepts -> the (faked) verdict runs.
-    assert statuses["goals"] == "implemented"
-    # "Non-goals" shares no tokens with any evidence -> retrieval exhausts
-    # its retry budget -> missing_info -> "unknown" without calling verdict.
-    assert statuses["non-goals"] == "unknown"
+    # The `src/retrieval_config.py` claim shares tokens with the real
+    # src/retrieval_config.py (an After file) -> heuristic judge accepts ->
+    # the (faked) verdict runs.
+    assert statuses["src-retrieval-config-py"] == "implemented"
+    # The `src/oauth_login.py` claim has no matching evidence -> retrieval
+    # exhausts its retry budget -> missing_info -> "unknown" without calling
+    # verdict.
+    assert statuses["src-oauth-login-py"] == "unknown"
 
     assert report.repo_score == 0.75  # gap=(0.0 implemented + 0.5 unknown)/2=0.25 -> repo_score=1-0.25
     assert list(out_dir.glob("*.json")), "emit_report should have written a json report"
@@ -75,7 +77,7 @@ def test_scan_uses_files_param_instead_of_shelling_git_when_given(tmp_path, monk
     report = pipeline.scan(["src/retrieval_config.py"], repo, judge_name="heuristic")
 
     statuses = {v.section_id: v.status for v in report.docs[0].sections}
-    assert statuses["goals"] == "implemented"
+    assert statuses["src-retrieval-config-py"] == "implemented"
 
 
 def test_scan_with_haiku_judge_and_minimax_provider_reaches_the_right_env_var(
