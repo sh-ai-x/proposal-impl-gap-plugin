@@ -3,14 +3,13 @@
 # CLAUDE.md / AGENTS.md — harness-lite pointer
 
 > This project has the **harness-lite** plugin installed. Its skills
-> (`bootstrap`, `build`, `review`, `ship`, `route`, `flow-*`,
-> `ci-doctor`, `ci-setup`, `gate-select`, `gate-artifacts`, `proposal`,
-> `babysit-pr`, `onboarding`) are available every session via
-> `/harness-lite:<name>`, regardless of which project you're in — no
-> local copy needed. Served on both `CLAUDE.md` (Claude Code) and
-> `AGENTS.md` (Codex CLI, opencode, aider, etc.); on disk the two names
-> point to the same file via a symlink — edit this one, both stay in
-> sync.
+> are available every session via `/harness-lite:<name>`, regardless of
+> which project you're in — no local copy needed. The current skill
+> list is the plugin's own repo, not a copy here (it changes over
+> time): see the **Skills index** link below. Served on both
+> `CLAUDE.md` (Claude Code) and `AGENTS.md` (Codex CLI, opencode,
+> aider, etc.); on disk the two names point to the same file via a
+> symlink — edit this one, both stay in sync.
 
 ## Iron laws (lite edition)
 
