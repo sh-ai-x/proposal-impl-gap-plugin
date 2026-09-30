@@ -1,9 +1,14 @@
-"""Pluggable judge candidates for the retrieval subsystem's 'Good?' gate.
+"""Pluggable judges for the gap-plugin direct-judge path.
 
-Each judge decides, for one BM25 query, whether the retrieved candidates are
-good enough to accept (a fixed CONFIDENCE_THRESHOLD is the single source of
-truth for that decision, shared by every judge so retrieval.py stays
-judge-agnostic and only reads `.accepted`).
+Only one judge is registered: `jev` (TypeSafe System One / Noul). It
+classifies a single candidate against a section's claim, with internal
+escalation to haiku when Jev's own answer is in the 0.3-0.7 uncertainty
+band. Used by `gap_plugin/direct.py:resolve`.
+
+The old `heuristic_judge` (token overlap + after_files bonus) lived here
+because it gated BM25 retrieval candidates. With the retrieval layer
+removed, there is nothing for a heuristic to gate -- direct.read +
+jev_judge replaces both.
 """
 from __future__ import annotations
 
@@ -15,7 +20,6 @@ from typing import Any
 
 from gap_plugin.errors import MissingAPIKeyError
 from gap_plugin.llm import call_claude, default_model
-from gap_plugin.text import tokenize
 from gap_plugin.types import Candidate, JudgeVerdict, Section
 
 CONFIDENCE_THRESHOLD = 0.7
@@ -27,31 +31,6 @@ JEV_ESCALATION_CERTAINTY = 0.4
 TYPESAFE_API_URL = "https://api.typesafe.ai/v1/systemone"
 
 Judge = Callable[[Section, list[Candidate], set[str]], JudgeVerdict]
-
-
-def _tokenize(text: str) -> set[str]:
-    return set(tokenize(text))
-
-
-def heuristic_judge(section: Section, candidates: list[Candidate], after_files: set[str]) -> JudgeVerdict:
-    """No AI, no cost: token-overlap between section_text and candidate snippets,
-    plus an 'After bullets' intersection bonus (the file was actually touched)."""
-    section_tokens = _tokenize(section.section_text)
-    best_overlap = 0.0
-    for c in candidates:
-        if not section_tokens:
-            continue
-        overlap = len(section_tokens & _tokenize(c.snippet)) / len(section_tokens)
-        best_overlap = max(best_overlap, overlap)
-
-    after_hit = any(c.file_path in after_files for c in candidates)
-    confidence = min(1.0, best_overlap + (0.2 if after_hit else 0.0))
-    accepted = confidence >= CONFIDENCE_THRESHOLD
-    return JudgeVerdict(
-        accepted=accepted,
-        confidence=confidence,
-        reasoning=f"token overlap={best_overlap:.2f}, after_files hit={after_hit}",
-    )
 
 
 def _build_judge_prompt(section: Section, candidates: list[Candidate]) -> str:
@@ -88,6 +67,7 @@ def haiku_judge(
     provider: str = "anthropic",
     model: str | None = None,
 ) -> JudgeVerdict:
+    """LLM judge used as the second tier inside `jev_judge` when Jev is uncertain."""
     model = model or default_model(provider, "haiku")
     raw_text = call_claude(
         _build_judge_prompt(section, candidates), model=model, max_tokens=200, provider=provider
@@ -100,9 +80,9 @@ def _call_jev(state: dict[str, Any], instructions: str, criteria: dict[str, str]
     the model's probability (0..1) that the condition holds -- not a
     confidence score; see JEV_ESCALATION_CERTAINTY for how this module
     derives one."""
-    api_key = os.environ.get("TYPESAFE_API_KEY")
+    api_key = os.environ.get("JEV_API_KEY")
     if not api_key:
-        raise MissingAPIKeyError("jev_judge requires TYPESAFE_API_KEY")
+        raise MissingAPIKeyError("jev_judge requires JEV_API_KEY")
     body = json.dumps(
         {
             "state": state,
@@ -171,8 +151,6 @@ def jev_judge(
 
 
 _JUDGES: dict[str, Judge] = {
-    "heuristic": heuristic_judge,
-    "haiku": haiku_judge,
     "jev": jev_judge,
 }
 

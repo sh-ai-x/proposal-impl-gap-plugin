@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Gap Plugin: Direct-Judge Pipeline",
+    "subtitle": "Extract file path from proposal bullet, Read, call Jev (Noul primitive) with internal haiku escalation on uncertainty. No BM25 retrieval layer.",
+    "output": "direct-judge.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "User / CLI", "sublabel": "scripts/gap_scan.py", "pos": [40, 40], "size": [130, 60] },
+    { "id": "proposal_doc", "type": "external", "label": "Proposal doc", "sublabel": "## After bullets", "tag": "names files in backticks", "pos": [40, 200], "size": [150, 64] },
+    { "id": "repo", "type": "external", "label": "Source repo", "sublabel": "gap_plugin/, scripts/, tests/", "pos": [40, 340], "size": [150, 64] },
+    { "id": "pipeline", "type": "backend", "label": "scan()", "sublabel": "plain for-loop", "tag": "no state machine", "pos": [240, 200], "size": [130, 60] },
+    { "id": "discover", "type": "backend", "label": "discover_docs", "sublabel": "glob + slug", "pos": [430, 80], "size": [130, 60] },
+    { "id": "direct", "type": "backend", "label": "direct.resolve", "sublabel": "extract path → Read", "tag": "NEW; no BM25", "pos": [430, 260], "size": [150, 80] },
+    { "id": "report", "type": "backend", "label": "build_repo_report", "sublabel": "1 - mean(gap_weight)", "pos": [640, 200], "size": [150, 60] },
+    { "id": "reports_json", "type": "external", "label": "Scan report", "sublabel": "data/scan/reports/*.json", "pos": [885, 200], "size": [150, 60] },
+    { "id": "jev", "type": "cloud", "label": "TypeSafe System One", "sublabel": "Noul primitive", "tag": "JEV_API_KEY", "pos": [640, 40], "size": [150, 64] },
+    { "id": "haiku", "type": "cloud", "label": "Anthropic Claude", "sublabel": "LLM escalation only", "tag": "ANTHROPIC_API_KEY", "pos": [640, 380], "size": [150, 64] },
+    { "id": "decisions_jsonl", "type": "database", "label": "decisions.jsonl", "sublabel": "append-only audit log", "pos": [240, 460], "size": [180, 64] },
+    { "id": "review_skill", "type": "security", "label": "/gap-plugin:review", "sublabel": "human-in-loop self-check", "tag": "tier 2 — re-reads file", "pos": [855, 380], "size": [160, 80] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "gap_plugin/ package", "wraps": ["pipeline", "discover", "direct", "report"] },
+    { "kind": "region", "label": "External services (API)", "wraps": ["jev", "haiku"] },
+    { "kind": "region", "label": "Human loop", "wraps": ["review_skill", "decisions_jsonl"] }
+  ],
+  "connections": [
+    { "id": "user-pipeline", "from": "user", "to": "pipeline", "label": "scan(repo, docs=)" },
+    { "id": "pipeline-discover", "from": "pipeline", "to": "discover", "label": "find proposals" },
+    { "id": "discover-doc", "from": "discover", "to": "proposal_doc", "label": "read bullet", "fromSide": "left", "toSide": "right" },
+    { "id": "pipeline-direct", "from": "pipeline", "to": "direct", "label": "per section" },
+    { "id": "direct-extract", "from": "direct", "to": "proposal_doc", "label": "extract file path", "variant": "dashed", "fromSide": "left", "toSide": "bottom" },
+    { "id": "direct-read", "from": "direct", "to": "repo", "label": "Read named file", "fromSide": "bottom", "toSide": "right" },
+    { "id": "direct-jev", "from": "direct", "to": "jev", "label": "POST Noul question", "variant": "emphasis", "fromSide": "top", "toSide": "left" },
+    { "id": "jev-direct", "from": "jev", "to": "direct", "label": "noul ∈ [0, 1]", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "direct-haiku", "from": "direct", "to": "haiku", "label": "escalate if |noul-0.5|*2 < 0.4", "variant": "security" },
+    { "id": "pipeline-report", "from": "pipeline", "to": "report", "label": "section verdicts" },
+    { "id": "report-out", "from": "report", "to": "reports_json", "label": "emit JSON + MD" },
+    { "id": "review-direct", "from": "review_skill", "to": "direct", "label": "tier 2 re-judge", "variant": "dashed", "fromSide": "left", "toSide": "right" },
+    { "id": "review-decisions", "from": "review_skill", "to": "decisions_jsonl", "label": "append decision", "fromSide": "bottom", "toSide": "right" },
+    { "id": "pipeline-decisions", "from": "pipeline", "to": "decisions_jsonl", "label": "direct log", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Inputs", "items": [
+      "Proposal doc with backtick-quoted file paths in After bullets",
+      "Source repo to scan"
+    ] },
+    { "dot": "emerald", "title": "Direct judge", "items": [
+      "Regex extracts `path/to/file.py` from each bullet",
+      "Read the named file; build a single Candidate",
+      "One Jev call returns noul → implemented (≥0.5) or missing (<0.5)"
+    ] },
+    { "dot": "amber", "title": "Escalation", "items": [
+      "Jev uncertainty band (|noul - 0.5|*2 < 0.4) → haiku_judge",
+      "Observed: 2 of 17 claims in the test proposal",
+      "Cost: 1 Jev + 0-1 haiku per claim"
+    ] },
+    { "dot": "rose", "title": "Human loop", "items": [
+      "/gap-plugin:review re-reads files for disputed claims",
+      "Decisions logged to data/scan/decisions.jsonl (append-only)",
+      "Doc-level rot check at ≥80% missing"
+    ] }
+  ]
+}

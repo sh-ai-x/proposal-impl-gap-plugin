@@ -4,9 +4,10 @@ from pathlib import Path
 
 import pytest
 
+import gap_plugin.judges as judges_module
 import gap_plugin.pipeline as pipeline
 from gap_plugin.errors import MissingAPIKeyError
-from gap_plugin.types import VerdictResult
+from gap_plugin.types import JudgeVerdict
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -32,68 +33,50 @@ def _init_repo_with_proposal(tmp_path: Path) -> Path:
 
 
 def test_scan_runs_end_to_end_and_emits_report(tmp_path, monkeypatch) -> None:
+    """Direct judge: implemented for the file that exists, missing for the one that doesn't."""
     repo = _init_repo_with_proposal(tmp_path)
-
-    def fake_verdict(section, candidates, *, provider="anthropic", model=None):
-        return VerdictResult(status="implemented", confidence=0.9, reasoning="matched evidence")
-
-    monkeypatch.setattr(pipeline, "llm_status_verdict", fake_verdict)
+    monkeypatch.setenv("JEV_API_KEY", "test-key")
+    # High noul (0.95) -> confident accept; noul<0.5 is unreachable here because the
+    # second claim's file genuinely doesn't exist, so direct.resolve short-circuits.
+    monkeypatch.setattr(judges_module, "_call_jev", lambda *a, **k: 0.95)
 
     out_dir = tmp_path / "out"
-    report = pipeline.scan(None, repo, judge_name="heuristic", out_dir=out_dir)
+    report = pipeline.scan(repo, out_dir=out_dir)
 
     assert len(report.docs) == 1
     doc = report.docs[0]
     assert doc.doc_path == "docs/proposals/widget.proposal.md"
     statuses = {v.section_id: v.status for v in doc.sections}
 
-    # The `src/retrieval_config.py` claim shares tokens with the real
-    # src/retrieval_config.py (an After file) -> heuristic judge accepts ->
-    # the (faked) verdict runs.
     assert statuses["src-retrieval-config-py"] == "implemented"
-    # The `src/oauth_login.py` claim has no matching evidence -> retrieval
-    # exhausts its retry budget -> missing_info -> "unknown" without calling
-    # verdict.
-    assert statuses["src-oauth-login-py"] == "unknown"
+    assert statuses["src-oauth-login-py"] == "missing"
 
-    assert report.repo_score == 0.75  # gap=(0.0 implemented + 0.5 unknown)/2=0.25 -> repo_score=1-0.25
+    assert report.repo_score == 0.5  # gap = (0.0 implemented + 1.0 missing) / 2 = 0.5 -> repo_score = 0.5
     assert list(out_dir.glob("*.json")), "emit_report should have written a json report"
     assert list(out_dir.glob("*.md")), "emit_report should have written a markdown report"
 
 
-def test_scan_uses_files_param_instead_of_shelling_git_when_given(tmp_path, monkeypatch) -> None:
+def test_scan_escalates_to_haiku_when_jev_is_uncertain(tmp_path, monkeypatch) -> None:
+    """Jev noul in the uncertainty zone triggers a haiku escalation; result follows haiku."""
     repo = _init_repo_with_proposal(tmp_path)
+    monkeypatch.setenv("JEV_API_KEY", "test-key")
+    monkeypatch.setenv("MINIMAX_API_KEY", "test-key")
+    monkeypatch.setattr(judges_module, "_call_jev", lambda *a, **k: 0.55)  # certainty=0.1, below 0.4 floor
+    monkeypatch.setattr(
+        judges_module,
+        "haiku_judge",
+        lambda *a, **k: JudgeVerdict(accepted=True, confidence=0.81, reasoning="haiku says yes"),
+    )
 
-    def fake_verdict(section, candidates, *, provider="anthropic", model=None):
-        return VerdictResult(status="implemented", confidence=0.9, reasoning="matched evidence")
-
-    monkeypatch.setattr(pipeline, "llm_status_verdict", fake_verdict)
-
-    def boom(*args, **kwargs):
-        raise AssertionError("parse_after_files should not run when files= is given")
-
-    monkeypatch.setattr(pipeline, "parse_after_files", boom)
-
-    report = pipeline.scan(["src/retrieval_config.py"], repo, judge_name="heuristic")
-
+    report = pipeline.scan(repo, provider="minimax")
     statuses = {v.section_id: v.status for v in report.docs[0].sections}
     assert statuses["src-retrieval-config-py"] == "implemented"
+    assert "escalated" in next(v.reasoning for v in report.docs[0].sections if v.section_id == "src-retrieval-config-py")
 
 
-def test_scan_with_haiku_judge_and_minimax_provider_reaches_the_right_env_var(
-    tmp_path, monkeypatch
-) -> None:
-    """provider= must thread from scan() through the haiku judge to call_claude."""
+def test_scan_requires_jev_api_key(tmp_path, monkeypatch) -> None:
     repo = _init_repo_with_proposal(tmp_path)
-    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
 
-    with pytest.raises(MissingAPIKeyError, match="MINIMAX_API_KEY"):
-        pipeline.scan(["src/retrieval_config.py"], repo, judge_name="haiku", provider="minimax")
-
-
-def test_scan_with_jev_judge_requires_typesafe_api_key(tmp_path, monkeypatch) -> None:
-    repo = _init_repo_with_proposal(tmp_path)
-    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-
-    with pytest.raises(MissingAPIKeyError, match="TYPESAFE_API_KEY"):
-        pipeline.scan(["src/retrieval_config.py"], repo, judge_name="jev")
+    with pytest.raises(MissingAPIKeyError, match="JEV_API_KEY"):
+        pipeline.scan(repo)

@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""gap_scan.py -- run gap_plugin.scan(files, repo) and print a summary.
+"""gap_scan.py -- run gap_plugin.scan(repo) and print a summary.
 
-Default judge is haiku (needs ANTHROPIC_API_KEY, or --provider minimax /
-deepseek + the matching key) -- heuristic's lexical overlap measurably can't
-bridge paraphrase on real proposal prose. Pass --judge heuristic for a free,
-no-key run (lower accuracy, but works anywhere).
-
-Usage:
-  python3 scripts/gap_scan.py                              # scan this repo (haiku, needs a key)
-  python3 scripts/gap_scan.py --judge heuristic             # free, no key needed
-  python3 scripts/gap_scan.py --provider minimax            # needs MINIMAX_API_KEY
-  python3 scripts/gap_scan.py --files a.py b.py             # CI-style: hand in the changed-file list
+Direct-judge pipeline: each proposal bullet names a file, the scanner reads
+it and asks Jev (TypeSafe System One / Noul) to classify. Needs JEV_API_KEY.
+Jev escalates internally to an LLM judge (provider's matching key) when its
+own answer is in the 0.3-0.7 uncertainty band.
 
 Output:
   data/scan/reports/<timestamp>.json   full structured RepoReport
@@ -26,26 +20,18 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # run directly without installing the package
 
 from gap_plugin import scan  # noqa: E402
+from gap_plugin.discovery import discover_docs  # noqa: E402
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", type=Path, default=REPO, help="repo root to scan (default: this repo)")
-    parser.add_argument("--files", nargs="*", default=None, help="changed files (default: computed via git diff)")
-    parser.add_argument("--judge", default="haiku", choices=["heuristic", "haiku", "jev"])
-    parser.add_argument("--provider", default="anthropic", choices=["anthropic", "minimax", "deepseek"])
-    parser.add_argument("--base-ref", default="HEAD")
+    parser.add_argument("--provider", default="minimax", choices=["anthropic", "minimax", "deepseek"])
     parser.add_argument("--out-dir", type=Path, default=REPO / "data" / "scan" / "reports")
     args = parser.parse_args()
 
-    report = scan(
-        args.files,
-        args.repo,
-        judge_name=args.judge,
-        provider=args.provider,
-        base_ref=args.base_ref,
-        out_dir=args.out_dir,
-    )
+    docs = discover_docs(args.repo)
+    report = scan(args.repo, docs=docs, provider=args.provider, out_dir=args.out_dir)
 
     print(f"repo_score: {report.repo_score:.3f}")
     print(f"judge: {report.judge_name}  verdict_model: {report.verdict_model}")

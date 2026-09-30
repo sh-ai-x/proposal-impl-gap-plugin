@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "782e3d82-2b3a-47b7-b84a-8210f8c3733c",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/sanghee/dev/proposal-impl-gap-plugin/.worktrees/gap-plugin-implementation/.archify/architecture-direct-judge-20261001-000043/candidate.json",
+  "output": "/Users/sanghee/dev/proposal-impl-gap-plugin/.worktrees/gap-plugin-implementation/.archify/architecture-direct-judge-20261001-000043/direct-judge.html",
+  "specification": {
+    "sha256": "fad2de2d0128eecc9ba9f4f45f40a69dff6572567ec177e7f76f5aeeebc2f19d",
+    "bytes": 5306
+  },
+  "artifact": {
+    "sha256": "bb74fd947318f85fbcbacb8bfe977cdc22762b3e7239ea40c40f5709a5fa345d",
+    "bytes": 775217
+  }
+}

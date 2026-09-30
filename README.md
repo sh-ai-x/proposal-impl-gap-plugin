@@ -4,42 +4,30 @@ Measures drift between `/harness-lite:proposal` documents and their implementati
 
 ## Architecture
 
-See `archify/` for rendered diagrams + candidate sources. Each diagram has a sibling `candidate.json` source file in the same dir — the JSON is the truth; the HTML/PNG are renders.
+See `archify/` for rendered diagrams + candidate sources. Each diagram has a sibling `candidate.json` source file in the same dir — the JSON is the truth; the HTML/PNG are renders. The current diagrams still describe the legacy BM25/retrieval design; they will be regenerated to match this direct-judge pipeline in a follow-up.
 
-- `archify/gap-plugin-architecture.html` — system map (subsystems: discovery → retrieval → verdict → aggregation → observability)
-- `archify/gap-plugin-sequence.html` — PR-time scan flow (BM25 → judge → Claude verdict → report)
-- `archify/gap-plugin-lifecycle.html` — LangGraph retrieval state machine (bounded retry)
-- `archify/measurement-architecture.html` — measurement system architecture
-- `archify/measurement-sequence.html` — eval harness execution
-- `gap_plugin/` — the implementation of the above: `discover_docs` → hand-rolled BM25 (over
-  git-diff "After bullets") → bounded-retry retrieval state machine → pluggable judge
-  (`heuristic`/`haiku`/`jev`) → `llm_status_verdict` → per-doc/repo report. Entry point:
-  `gap_plugin.scan(files, repo)`. Tests: `pytest tests/`.
+- `archify/architecture-gap-plugin/candidate.json` — source for the system architecture diagram
+- `archify/gap-plugin-architecture.html` — rendered architecture
+
+`gap_plugin/` — the implementation: `discover_docs` → `direct.resolve` (extract file path from claim → Read → Jev with internal haiku escalation) → per-doc/repo report. Entry point: `gap_plugin.scan(repo, docs=None)`. Tests: `pytest tests/`.
+
+Why direct judge: with a narrow diff corpus BM25 retrieval hit 1/17 of claims on a real proposal. Reading the named file directly and asking Jev to classify gets 16/17 at ~5x lower cost. The BM25/retrieval state machine was removed; see `gap_plugin/direct.py` for the path that replaced it.
 
 ## Status
 
 | Stage | State |
 |---|---|
-| Design | Complete (archify-rendered) |
-| GT derivation | `scripts/derive_gt.py` (git-only) |
-| Eval harness | `scripts/eval_judge.py` (anti-contamination) |
-| Gap Plugin pipeline | Implemented — `gap_plugin/`, runnable via `scripts/gap_scan.py` |
-| Real LLM integration | Implemented for `anthropic`/`minimax`/`deepseek` (all Anthropic-Messages-compatible, one SDK, see `gap_plugin/llm.py`) — needs the matching `*_API_KEY` in `.env` or the environment |
-| Jev integration | Implemented — TypeSafe System One (Noul primitive) via `TYPESAFE_API_KEY`; escalates to an LLM judge when Jev's own answer is near 50/50, see `gap_plugin/judges.py:jev_judge` |
+| Design | Diagrams in `archify/` are stale (legacy BM25 design); pipeline now uses direct judge |
+| Pipeline | Implemented — `gap_plugin/`, runnable via `scripts/gap_scan.py` |
+| LLM integration | Implemented for `anthropic`/`minimax`/`deepseek` (Anthropic-Messages-compatible, one SDK, `gap_plugin/llm.py`) — needs the matching `*_API_KEY` in `.env` |
+| Jev integration | Implemented — TypeSafe System One (Noul primitive) via `JEV_API_KEY`; escalates to an LLM judge when Jev's answer is in the 0.3-0.7 uncertainty band, `gap_plugin/judges.py:jev_judge` |
 
 ## Run
 
 ```bash
-# Generate GT from ai_saas worktrees
-python3 scripts/derive_gt.py
-
-# Evaluate judges against GT (heuristic + Jev mock always work; LLM judges need API key)
-python3 scripts/eval_judge.py
-
-# Run the actual Gap Plugin scan (heuristic judge needs no key; haiku/verdict need one)
-python3 scripts/gap_scan.py
-python3 scripts/gap_scan.py --judge haiku --provider minimax   # needs MINIMAX_API_KEY
-python3 scripts/gap_scan.py --judge jev                        # needs TYPESAFE_API_KEY (+ ANTHROPIC_API_KEY for escalation)
+# Run the Gap Plugin scan (direct judge: needs JEV_API_KEY; the matching provider's key for escalation)
+python3 scripts/gap_scan.py                                    # provider=minimax default; reads JEV_API_KEY
+python3 scripts/gap_scan.py --provider anthropic                # uses ANTHROPIC_API_KEY for escalation
 
 # Run the gap_plugin test suite
 python3 -m pytest tests/

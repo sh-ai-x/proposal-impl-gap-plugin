@@ -25,5 +25,5 @@ def test_gap_scan_help_lists_expected_flags() -> None:
     result = subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True)
 
     assert result.returncode == 0
-    assert "--judge" in result.stdout
     assert "--provider" in result.stdout
+    assert "--repo" in result.stdout

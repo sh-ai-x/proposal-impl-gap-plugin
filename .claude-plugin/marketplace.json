@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gap-plugin",
+  "owner": {
+    "name": "sh-ai-x",
+    "url": "https://github.com/sh-ai-x"
+  },
+  "plugins": [
+    {
+      "name": "gap-plugin",
+      "description": "Detects drift between proposal documents and their implementation, then walks a human through resolving each disputed claim. Claude Code + Codex compatible.",
+      "source": "./"
+    }
+  ]
+}

@@ -8,14 +8,10 @@ description: Run scripts/gap_scan.py, self-verify every disputed claim (status p
 Turns a `gap_scan.py` report into decisions. It does NOT ask a human
 something the agent can just go check -- "does this file exist and match
 the proposal" is a fact, not a judgment call, and the agent running this
-skill already has Read access the automated heuristic judge didn't use
+skill already has Read access the direct-judge pipeline couldn't use
 well. What it never does is *guess* on a genuine disagreement (proposal
 says X, code does Y, and it's unclear which one should win) -- that one
-gets asked, with both sides quoted. See `docs/proposals/gap-plugin-pipeline.md`
-for why: a text-diffing pipeline cannot know which side was updated more
-recently or more deliberately -- but a human can't know that from a
-one-line status label either, so don't ask them something *they* can't
-resolve any better than the agent already has.
+gets asked, with both sides quoted.
 
 ## What it does
 
@@ -58,13 +54,15 @@ If the caller already has a report path (JSON under `data/scan/reports/`),
 use it. Otherwise run a scan:
 
 ```bash
-python3 scripts/gap_scan.py --judge heuristic --out-dir data/scan/reports
+python3 scripts/gap_scan.py --out-dir data/scan/reports
 ```
 
-`heuristic` is the default here on purpose: this skill already puts a human
-(and, running inside an agent session, an LLM) in the loop for every
-disputed claim, so paying for `haiku`/a hosted provider on top buys little.
-Pass `--judge haiku --provider <name>` through if the caller asked for it.
+The pipeline runs direct judge (Jev with internal haiku escalation) per claim.
+A free no-key scan is no longer supported -- the old `--judge heuristic`
+path was removed because its lexical-overlap signal was an order of
+magnitude worse than direct judgment on this proposal. The LLM cost is
+paid only for the fraction of claims that escalate from Jev's uncertainty
+band, which on this proposal was 2/17.
 
 Load the newest `data/scan/reports/*.json`.
 
@@ -91,21 +89,19 @@ first tier that resolves the claim:
 1. **Read it yourself.** The bullet (Step 2) usually names the file(s).
    Open them (Read tool / Glob for a rename) and check directly: does the
    content do what the bullet describes? This alone resolves the large
-   majority of `missing_info` claims -- free, and often the file plainly
-   exists and matches, or plainly doesn't exist at all.
-2. **Ask Jev when your own read is genuinely unsure** (partial match,
-   ambiguous overlap) -- call `gap_plugin.judges.jev_judge(section,
-   candidates, after_files)` for a calibrated second opinion. The report
-   doesn't store the original retrieved candidates (see "Known gap"), so
-   build `candidates` yourself from what tier 1 already read: a single
-   `Candidate(file_path=<the file you opened>, snippet=<the content you
-   read, truncated if huge>, score=1.0, source="bm25")` is enough -- tier
-   2 is a calibrated second opinion on the *same* evidence tier 1 saw,
-   not a fresh retrieval. Needs `TYPESAFE_API_KEY`; if it's not set, skip
-   this tier entirely and go straight to Step 4. `jev_judge` already
-   escalates internally to `haiku_judge` when Jev's own answer is near a
-   coin flip (`noul` close to 0.5), so this one call may itself make two
-   -- that's expected, not a bug to route around.
+   majority of disputed claims -- free, and often the file plainly exists
+   and matches, or plainly doesn't exist at all. If you reach this step
+   the direct-judge pipeline already reached the same conclusion for most
+   claims; the ones that land here are the cases Jev returned uncertain
+   (`noul` in the 0.3-0.7 band) and either accepted or rejected with
+   evidence the human should sanity-check.
+2. **Re-run Jev on the file you just read** if you want a second calibrated
+   opinion on the same evidence: `gap_plugin.judges.jev_judge(section,
+   [Candidate(file_path=<path>, snippet=<content>, score=1.0, source="bm25")],
+   after_files)`. Needs `JEV_API_KEY`; if it's not set, skip this tier
+   entirely and go straight to Step 4. `jev_judge` already escalates
+   internally to `haiku_judge` when Jev's own answer is near a coin flip,
+   so this one call may itself make two -- that's expected.
 3. **Still unresolved?** That's a real disagreement, not a detection gap
    -- take it to Step 4.
 
@@ -193,8 +189,7 @@ re-read when absent, so this skill doesn't break on an older report.
 
 - `archify/architecture-gap-plugin/candidate.json` -- the "Human Review"
   region this skill implements (`ask`, `decisions_log`, `act_edit`,
-  `act_spawn`, `act_delete` nodes).
-- `docs/proposals/gap-plugin-pipeline.md` -- why the pipeline never
-  auto-decides who's right.
+  `act_spawn`, `act_delete` nodes). Diagram is on the legacy design;
+  will be regenerated to match the direct-judge pipeline.
 - `gap_plugin/report.py`, `gap_plugin/types.py` -- the actual `RepoReport`
   shape this skill reads.
