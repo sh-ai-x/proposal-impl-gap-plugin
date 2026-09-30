@@ -1,4 +1,4 @@
-"""'parse After-files': after_files (changed paths) and diff_bullets (evidence text for BM25)."""
+"""'parse After-files': parse_after_files (changed paths) and diff_bullets (evidence text for BM25)."""
 from __future__ import annotations
 
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 from gap_plugin.types import EvidenceItem
 
 
-def after_files(repo_root: Path, base_ref: str = "HEAD") -> set[str]:
+def parse_after_files(repo_root: Path, base_ref: str = "HEAD") -> set[str]:
     result = subprocess.run(
         ["git", "diff", "--name-only", base_ref],
         cwd=repo_root,

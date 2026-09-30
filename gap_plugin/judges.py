@@ -8,12 +8,11 @@ judge-agnostic and only reads `.accepted`).
 from __future__ import annotations
 
 import json
-import os
 import re
 from collections.abc import Callable
 from typing import Any
 
-from gap_plugin.errors import MissingAPIKeyError
+from gap_plugin.llm import call_claude
 from gap_plugin.types import Candidate, JudgeVerdict, Section
 
 CONFIDENCE_THRESHOLD = 0.7
@@ -81,15 +80,7 @@ def haiku_judge(
     *,
     model: str = "claude-haiku-4-5",
 ) -> JudgeVerdict:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise MissingAPIKeyError("haiku_judge requires ANTHROPIC_API_KEY")
-    from anthropic import Anthropic
-
-    client = Anthropic(api_key=api_key)
-    prompt = _build_judge_prompt(section, candidates)
-    resp = client.messages.create(model=model, max_tokens=200, messages=[{"role": "user", "content": prompt}])
-    raw_text = resp.content[0].text
+    raw_text = call_claude(_build_judge_prompt(section, candidates), model=model, max_tokens=200)
     return _parse_judge_response(raw_text)
 
 

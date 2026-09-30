@@ -65,9 +65,9 @@ def test_scan_uses_files_param_instead_of_shelling_git_when_given(tmp_path, monk
     monkeypatch.setattr(pipeline, "llm_status_verdict", fake_verdict)
 
     def boom(*args, **kwargs):
-        raise AssertionError("compute_after_files should not run when files= is given")
+        raise AssertionError("parse_after_files should not run when files= is given")
 
-    monkeypatch.setattr(pipeline, "compute_after_files", boom)
+    monkeypatch.setattr(pipeline, "parse_after_files", boom)
 
     report = pipeline.scan(["src/retrieval_config.py"], repo, judge_name="heuristic")
 

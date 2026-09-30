@@ -1,3 +1,4 @@
+import gap_plugin.retrieval as retrieval_module
 from gap_plugin.retrieval import run_retrieval
 from gap_plugin.types import Candidate, JudgeVerdict, Section
 
@@ -59,3 +60,12 @@ def test_rewrite_expands_the_query_text_between_attempts() -> None:
     assert len(queries) == 2
     assert queries[0] != queries[1]
     assert queries[0] in queries[1]
+
+
+def test_merges_symbol_candidates_alongside_bm25(monkeypatch) -> None:
+    symbol_hit = Candidate(file_path="y.py", snippet="symbol evidence", score=1.0, source="symbol")
+    monkeypatch.setattr(retrieval_module, "symbol_candidates", lambda section: [symbol_hit])
+
+    outcome = run_retrieval(_section(), _FakeBM25([]), _judge_sequence([True]), after_files=set())
+
+    assert symbol_hit in outcome.candidates

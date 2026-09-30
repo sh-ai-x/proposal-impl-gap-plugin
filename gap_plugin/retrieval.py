@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 
 from gap_plugin.judges import Judge
+from gap_plugin.symbols import symbol_candidates
 from gap_plugin.types import RetrievalOutcome, Section
 
 _CASE_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
@@ -31,7 +32,7 @@ def run_retrieval(
     candidates = []
     while True:
         attempt += 1
-        candidates = bm25.query(query_text, k=top_k)
+        candidates = bm25.query(query_text, k=top_k) + symbol_candidates(section)
         verdict = judge(section, candidates, after_files)
         if verdict.accepted:
             return RetrievalOutcome(status="answer", candidates=candidates, attempts=attempt)

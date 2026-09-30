@@ -8,13 +8,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from gap_plugin.bm25 import BM25Index
-from gap_plugin.diffscan import after_files as compute_after_files
-from gap_plugin.diffscan import diff_bullets
+from gap_plugin.diffscan import diff_bullets, parse_after_files
 from gap_plugin.discovery import discover_docs
 from gap_plugin.judges import get_judge
 from gap_plugin.report import build_doc_report, build_repo_report, emit_report
 from gap_plugin.retrieval import run_retrieval
-from gap_plugin.types import RepoReport, SectionVerdict
+from gap_plugin.types import DocReport, RepoReport, SectionVerdict
 from gap_plugin.verdict import llm_status_verdict
 
 
@@ -35,7 +34,7 @@ def scan(
     # `files` lets CI hand in the PR's changed-file list directly (matches the
     # sequence diagram's scan(files, repo) call); fall back to computing it
     # ourselves when the caller doesn't already know it.
-    changed = set(files) if files else compute_after_files(repo, base_ref=base_ref)
+    changed = set(files) if files else parse_after_files(repo, base_ref=base_ref)
     bullets = diff_bullets(repo, changed, base_ref=base_ref) if changed else []
 
     bm25 = BM25Index()
@@ -43,7 +42,7 @@ def scan(
 
     judge = get_judge(judge_name)
 
-    doc_reports = []
+    doc_reports: list[DocReport] = []
     for doc in docs:
         section_verdicts: list[SectionVerdict] = []
         for section in doc.sections:

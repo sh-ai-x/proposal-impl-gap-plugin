@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from gap_plugin.diffscan import after_files, diff_bullets
+from gap_plugin.diffscan import diff_bullets, parse_after_files
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -24,7 +24,7 @@ def test_after_files_reports_modified_file_vs_base_ref(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
     (repo / "a.txt").write_text("one\ntwo\n")
 
-    changed = after_files(repo, base_ref="HEAD")
+    changed = parse_after_files(repo, base_ref="HEAD")
 
     assert changed == {"a.txt"}
 
@@ -32,7 +32,7 @@ def test_after_files_reports_modified_file_vs_base_ref(tmp_path: Path) -> None:
 def test_after_files_empty_when_no_changes(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
 
-    changed = after_files(repo, base_ref="HEAD")
+    changed = parse_after_files(repo, base_ref="HEAD")
 
     assert changed == set()
 

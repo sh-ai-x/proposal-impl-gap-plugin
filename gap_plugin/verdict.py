@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
-from gap_plugin.errors import MissingAPIKeyError
+from gap_plugin.llm import call_claude
 from gap_plugin.types import Candidate, STATUSES, Section, VerdictResult
 
 
@@ -39,13 +38,5 @@ def llm_status_verdict(
     *,
     model: str = "claude-sonnet-4-5",
 ) -> VerdictResult:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise MissingAPIKeyError("llm_status_verdict requires ANTHROPIC_API_KEY")
-    from anthropic import Anthropic
-
-    client = Anthropic(api_key=api_key)
-    prompt = _build_prompt(section, candidates)
-    resp = client.messages.create(model=model, max_tokens=300, messages=[{"role": "user", "content": prompt}])
-    raw_text = resp.content[0].text
+    raw_text = call_claude(_build_prompt(section, candidates), model=model, max_tokens=300)
     return _parse_verdict(raw_text)
