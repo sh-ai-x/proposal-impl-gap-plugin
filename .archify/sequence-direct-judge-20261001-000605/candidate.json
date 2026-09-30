@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Gap Plugin: Direct-Judge Claim Resolution",
+    "subtitle": "One After-bullet flows through extract-path → Read → Jev → (escalate if uncertain) → verdict → repo report.",
+    "output": "sequence.html",
+    "viewBox": [1080, 680],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "User", "sublabel": "shell" },
+    { "id": "cli", "type": "frontend", "label": "CLI", "sublabel": "scripts/gap_scan.py" },
+    { "id": "pipeline", "type": "backend", "label": "Pipeline", "sublabel": "scan(repo, docs)" },
+    { "id": "direct", "type": "backend", "label": "Direct", "sublabel": "direct.resolve" },
+    { "id": "repo", "type": "database", "label": "Repo", "sublabel": "filesystem" },
+    { "id": "jev", "type": "cloud", "label": "Jev", "sublabel": "TypeSafe System One" },
+    { "id": "haiku", "type": "cloud", "label": "Haiku", "sublabel": "Anthropic Claude" },
+    { "id": "report", "type": "database", "label": "Report", "sublabel": "build_repo_report" }
+  ],
+  "segments": [
+    { "from": 160, "to": 215, "label": "Setup" },
+    { "from": 220, "to": 405, "label": "Direct judge" },
+    { "from": 410, "to": 485, "label": "Escalation (only if |noul-0.5|*2 < 0.4)" },
+    { "from": 490, "to": 560, "label": "Aggregate" }
+  ],
+  "messages": [
+    { "id": "m1-invoke", "from": "user", "to": "cli", "y": 175, "label": "python3 scripts/gap_scan.py", "variant": "default" },
+    { "id": "m2-scan", "from": "cli", "to": "pipeline", "y": 205, "label": "scan(repo, docs)", "variant": "emphasis" },
+    { "id": "m3-resolve", "from": "pipeline", "to": "direct", "y": 240, "label": "resolve(section, repo)", "variant": "emphasis" },
+    { "id": "m4-read", "from": "direct", "to": "repo", "y": 280, "label": "regex + Read named file (≤ 4KB)", "variant": "default" },
+    { "id": "m5-snippet", "from": "repo", "to": "direct", "y": 312, "label": "snippet", "variant": "return" },
+    { "id": "m6-jev", "from": "direct", "to": "jev", "y": 355, "label": "POST Noul question", "variant": "emphasis" },
+    { "id": "m7-noul", "from": "jev", "to": "direct", "y": 388, "label": "noul = 0.92", "variant": "return" },
+    { "id": "m8-escalate", "from": "direct", "to": "haiku", "y": 430, "label": "escalate (certainty < 0.4)", "variant": "security" },
+    { "id": "m9-haiku", "from": "haiku", "to": "direct", "y": 463, "label": "confidence = 0.95", "variant": "return" },
+    { "id": "m10-verdict", "from": "direct", "to": "pipeline", "y": 510, "label": "JudgeVerdict(accepted=True)", "variant": "default" },
+    { "id": "m11-report", "from": "pipeline", "to": "report", "y": 540, "label": "section verdict", "variant": "default" },
+    { "id": "m12-out", "from": "cli", "to": "user", "y": 572, "label": "stdout: repo_score 0.389, counts", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "cli", "from": 165, "to": 580, "type": "frontend" },
+    { "participant": "pipeline", "from": 200, "to": 560, "type": "backend" },
+    { "participant": "direct", "from": 235, "to": 515, "type": "backend" },
+    { "participant": "repo", "from": 275, "to": 317, "type": "database" },
+    { "participant": "jev", "from": 350, "to": 393, "type": "cloud" },
+    { "participant": "haiku", "from": 425, "to": 468, "type": "cloud" },
+    { "participant": "report", "from": 535, "to": 560, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Happy path",
+      "items": [
+        "Read the file the bullet already names",
+        "One Jev call returns a calibrated probability",
+        "Resolved in ~5s per claim on this run"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Escalation only on uncertainty",
+      "items": [
+        "If Jev certainty < 0.4 (|noul-0.5|*2 < 0.4)",
+        "Haiku is invoked with the same evidence",
+        "On test run: 2 of 17 claims"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "No BM25 layer",
+      "items": [
+        "No candidate corpus, no retrieval state machine",
+        "No retry budget, no heuristic pre-filter",
+        "Direct read is the entire retrieval step"
+      ]
+    }
+  ]
+}
