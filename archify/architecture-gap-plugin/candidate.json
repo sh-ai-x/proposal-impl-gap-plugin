@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposal-vs-Impl Gap Plugin",
+    "subtitle": "Claude Code + Codex dual-runtime skill; BM25 retrieval + LangGraph retry + Jev judge + Claude verdict + human-reviewed drift resolution",
+    "output": "gap-plugin-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "repo_docs", "type": "external", "label": "Proposal/spec docs", "sublabel": "md/yaml/pdf/html/txt", "tag": "repo-wide", "pos": [40, 40], "size": [135, 64] },
+    { "id": "repo_code", "type": "external", "label": "Source code", "sublabel": "src/, lib/, apps/", "pos": [40, 280], "size": [135, 64] },
+
+    { "id": "scan", "type": "backend", "label": "discover_docs", "sublabel": "multi-format scan, repo-wide", "tag": "no LLM", "pos": [225, 40], "size": [150, 64] },
+    { "id": "after_parse", "type": "backend", "label": "parse After-files", "sublabel": "vs git diff --name-only", "tag": "no LLM", "pos": [225, 160], "size": [150, 64] },
+    { "id": "bm25", "type": "database", "label": "BM25 index", "sublabel": "in-memory corpus", "pos": [225, 280], "size": [150, 64] },
+    { "id": "sym", "type": "database", "label": "Symbol index", "sublabel": "tree-sitter / LSP", "pos": [225, 400], "size": [150, 64] },
+
+    { "id": "q", "type": "backend", "label": "Question", "sublabel": "BM25 query, top-k=10", "tag": "LangGraph node", "pos": [425, 40], "size": [125, 60] },
+    { "id": "rewrite", "type": "backend", "label": "Rewrite?", "sublabel": "expand query", "tag": "no LLM", "pos": [425, 160], "size": [125, 60] },
+    { "id": "tryagain", "type": "backend", "label": "Try Again", "sublabel": "re-query with new variant", "tag": "LangGraph node", "pos": [425, 280], "size": [125, 50] },
+
+    { "id": "good", "type": "security", "label": "Good?", "sublabel": "judge (option)", "tag": "{accepted, confidence, reasoning}", "pos": [574, 40], "size": [132, 80] },
+    { "id": "no", "type": "backend", "label": "NO", "tag": "branch", "pos": [574, 180], "size": [90, 40] },
+    { "id": "retrylimit", "type": "security", "label": "retry limit?", "sublabel": "attempts < 2", "tag": "LangGraph node", "pos": [574, 280], "size": [132, 70] },
+
+    { "id": "answer", "type": "backend", "label": "answer", "sublabel": "candidates accepted", "tag": "terminal", "pos": [736, 40], "size": [82, 50] },
+    { "id": "missing", "type": "backend", "label": "missing_info", "sublabel": "graceful fail", "tag": "terminal", "pos": [574, 400], "size": [132, 50] },
+
+    { "id": "verdict", "type": "backend", "label": "llm_status_verdict", "sublabel": "Claude sonnet, structured output", "tag": "6 statuses + claim_id", "pos": [574, 500], "size": [224, 80] },
+
+    { "id": "perdoc", "type": "backend", "label": "per-doc report", "sublabel": "6-status roll-up", "tag": "in-memory", "pos": [225, 620], "size": [170, 64] },
+    { "id": "reposcore", "type": "backend", "label": "repo_score", "sublabel": "weighted aggregate", "tag": "in-memory", "pos": [425, 620], "size": [170, 64] },
+    { "id": "report", "type": "external", "label": "emit_report", "sublabel": "markdown + JSON per scan", "pos": [625, 620], "size": [190, 64] },
+
+    { "id": "ls", "type": "cloud", "label": "LangSmith trace", "sublabel": "every graph run + every verdict", "pos": [225, 740], "size": [190, 60] },
+    { "id": "eval", "type": "cloud", "label": "LangSmith eval", "sublabel": "precision@k / recall@k", "tag": "gated: 30-section corpus", "pos": [225, 840], "size": [190, 60] },
+
+    { "id": "ci_path", "type": "cloud", "label": "CI check", "sublabel": "scripts/gap_scan.py in CI", "tag": "existing, no human, exit code only", "pos": [225, 940], "size": [190, 64] },
+
+    { "id": "ask", "type": "security", "label": "Ask", "sublabel": "dual-cited evidence per claim", "tag": "AskUserQuestion, interactive-only", "pos": [423, 940], "size": [180, 80] },
+    { "id": "act_edit", "type": "external", "label": "Edit proposal", "sublabel": "impl-right: patch stale claim", "pos": [666, 940], "size": [180, 64] },
+    { "id": "decisions_log", "type": "database", "label": "decisions.jsonl", "sublabel": "data/scan/decisions.jsonl", "tag": "append-only", "pos": [400, 1080], "size": [180, 64] },
+    { "id": "act_spawn", "type": "backend", "label": "Spawn implementation", "sublabel": "proposal-right: hand off impl", "pos": [666, 1080], "size": [180, 64] },
+    { "id": "act_delete", "type": "external", "label": "Delete proposal doc", "sublabel": "git rm + explanation", "pos": [400, 1220], "size": [180, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Repository (project root)", "wraps": ["repo_docs", "repo_code"] },
+    { "kind": "region", "label": "Discovery + Indexing (no LLM)", "wraps": ["scan", "after_parse", "bm25", "sym"] },
+    { "kind": "region", "label": "Retrieval subsystem (LangGraph state machine)", "wraps": ["q", "good", "answer", "no", "rewrite", "tryagain", "retrylimit", "missing"] },
+    { "kind": "region", "label": "Verdict + Aggregation", "wraps": ["verdict", "perdoc", "reposcore", "report"] },
+    { "kind": "region", "label": "Observability (env-var configured)", "wraps": ["ls", "eval"] },
+    { "kind": "region", "label": "CI path (existing, unchanged — no human)", "wraps": ["ci_path"] },
+    { "kind": "region", "label": "Human Review (separate consumer, interactive session only)", "wraps": ["ask", "decisions_log", "act_spawn", "act_edit", "act_delete"] }
+  ],
+  "connections": [
+    { "id": "docs-to-scan", "from": "repo_docs", "to": "scan", "label": "files" },
+    { "id": "code-to-scan", "from": "repo_code", "to": "scan", "label": "files" },
+    { "id": "code-to-sym", "from": "repo_code", "to": "sym", "label": "tree" },
+    { "id": "scan-to-after", "from": "scan", "to": "after_parse", "label": "doc list" },
+    { "id": "after-to-bm25", "from": "after_parse", "to": "bm25", "label": "After bullets", "fromSide": "bottom", "toSide": "top" },
+    { "id": "scan-to-q", "from": "scan", "to": "q", "label": "text" },
+    { "id": "bm25-to-q", "from": "bm25", "to": "q", "label": "k=10", "fromSide": "right", "toSide": "bottom" },
+    { "id": "sym-to-q", "from": "sym", "to": "q", "label": "symbols", "fromSide": "right", "toSide": "bottom" },
+    { "id": "q-to-good", "from": "q", "to": "good" },
+    { "id": "good-to-answer", "from": "good", "to": "answer", "variant": "emphasis" },
+    { "id": "good-to-no", "from": "good", "to": "no", "fromSide": "bottom", "toSide": "top", "variant": "dashed" },
+    { "id": "no-to-rewrite", "from": "no", "to": "rewrite", "label": "expand query" },
+    { "id": "rewrite-to-tryagain", "from": "rewrite", "to": "tryagain" },
+    { "id": "tryagain-to-retrylimit", "from": "tryagain", "to": "retrylimit" },
+    { "id": "retrylimit-to-q", "from": "retrylimit", "to": "q", "label": "retry", "variant": "dashed" },
+    { "id": "retrylimit-to-missing", "from": "retrylimit", "to": "missing", "label": "capped", "variant": "security" },
+    { "id": "answer-to-verdict", "from": "answer", "to": "verdict", "label": "candidates" },
+    { "id": "missing-to-verdict", "from": "missing", "to": "verdict", "variant": "dashed" },
+    { "id": "verdict-to-perdoc", "from": "verdict", "to": "perdoc", "label": "ACStatus[]", "fromSide": "bottom", "toSide": "top" },
+    { "id": "perdoc-to-reposcore", "from": "perdoc", "to": "reposcore" },
+    { "id": "reposcore-to-report", "from": "reposcore", "to": "report" },
+    { "id": "good-to-ls", "from": "good", "to": "ls", "label": "trace", "variant": "dashed" },
+    { "id": "verdict-to-ls", "from": "verdict", "to": "ls", "label": "trace", "variant": "dashed" },
+    { "id": "perdoc-to-ls", "from": "perdoc", "to": "ls", "label": "trace", "variant": "dashed" },
+    { "id": "ls-to-eval", "from": "ls", "to": "eval", "label": "datasets feed", "variant": "dashed" },
+
+    { "id": "report-to-ci", "from": "report", "to": "ci_path", "label": "CI reads JSON" },
+    { "id": "report-to-ask", "from": "report", "to": "ask", "label": "human reads JSON", "fromSide": "bottom", "toSide": "top" },
+    { "id": "ask-to-edit", "from": "ask", "to": "act_edit", "label": "impl-right" },
+    { "id": "ask-to-log", "from": "ask", "to": "decisions_log", "label": "append verdict", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "ask-to-spawn", "from": "ask", "to": "act_spawn", "label": "proposal-is-right", "fromSide": "bottom", "toSide": "top" },
+    { "id": "log-to-delete", "from": "decisions_log", "to": "act_delete", "label": "doc >80% rot", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Top-level (linear)", "items": ["for doc in docs: for section: retrieval_graph.run → verdict", "Top-level stays a for-loop — no LangGraph overhead at the orchestrator level", "Repo-wide, one pass: every discovered doc scanned in the same scan() call"] },
+    { "dot": "emerald", "title": "Retrieval (state machine)", "items": ["LangGraph handles retry-with-judge + bounded retry budget", "BM25 → judge (option) → accept / rewrite → re-query / missing_info"] },
+    { "dot": "violet", "title": "Judge candidates", "items": ["Jev — typed judgment + probability (TypeSafe System One), calibrated confidence, fast", "claude-haiku with structured output — strong general reasoning, ~$0.001/call, vendor-flexible", "Heuristic (no AI, baseline) — token overlap + After-intersect, free but recall-limited", "Pick via A/B eval on GT; diagrams show both options, decision deferred until data lands"] },
+    { "dot": "amber", "title": "Cost model", "items": ["~$0.58 per 50-section proposal (haiku judge + sonnet verdict, Jev roughly comparable)", "BM25 + symbol index: free, build-once", "LangSmith trace: free tier covers PR-time gate"] },
+    { "dot": "rose", "title": "Failure-first design", "items": ["missing_info is a first-class per-section outcome (no silent miss)", "Judge confidence threshold 0.7 gates acceptance (works for all three candidates)", "Synonym/CamelCase rewrite handles paraphrase without embeddings"] },
+    { "dot": "slate", "title": "Human Review (new)", "items": ["Separate consumer, not inside scan() — reads the same emit_report JSON/MD, never called by pipeline.py", "CI path stays synchronous-human-free: exit code / fail check only, exactly as before", "Interactive session: AskUserQuestion with dual-cited evidence per disputed claim, pipeline never auto-decides who's right", "decisions.jsonl is the only new state gap_plugin owns — append-only, one line per resolved claim_id", "Doc-level rot check (>80% missing+contradicted) triggers git rm + explanation, not a per-claim heuristic"] }
+  ]
+}
